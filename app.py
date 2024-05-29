@@ -3,12 +3,9 @@ import os
 from pathlib import Path
 import re
 from unidecode import unidecode
-import chromadb
-from pydantic_settings import BaseSettings
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
 from langchain.chains import ConversationalRetrievalChain
 from langchain_community.embeddings import HuggingFaceEmbeddings 
 from langchain_community.llms import HuggingFacePipeline
@@ -23,7 +20,7 @@ api_token = "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"
 list_llm = ["meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"]  
 list_llm_simple = [os.path.basename(llm) for llm in list_llm]
 
-# Load PDF document and create doc splits
+# Load and split PDF document
 def load_doc(list_file_path, chunk_size, chunk_overlap):
     loaders = [PyPDFLoader(x) for x in list_file_path]
     pages = []
@@ -34,22 +31,15 @@ def load_doc(list_file_path, chunk_size, chunk_overlap):
     return doc_splits
 
 # Create vector database
-def create_db(splits, collection_name):
-    embedding = HuggingFaceEmbeddings()
-    new_client = chromadb.EphemeralClient()
-    vectordb = Chroma.from_documents(
-        documents=splits,
-        embedding=embedding,
-        client=new_client,
-        collection_name=collection_name,
-    )
+def create_db(splits):
+    embeddings = HuggingFaceEmbeddings()
+    vectordb = FAISS.from_documents(splits, embeddings)
     return vectordb
 
-# Load vector database
-def load_db():
-    embedding = HuggingFaceEmbeddings()
-    vectordb = Chroma(
-        embedding_function=embedding)
+# Load vector database (example if you want to load an existing one)
+def load_db(db_path):
+    embeddings = HuggingFaceEmbeddings()
+    vectordb = FAISS.load_local(db_path, embeddings)
     return vectordb
 
 # Initialize langchain LLM chain
@@ -120,7 +110,7 @@ def initialize_database(list_file_obj, chunk_size, chunk_overlap, progress=gr.Pr
     progress(0.25, desc="Loading document...")
     doc_splits = load_doc(list_file_path, chunk_size, chunk_overlap)
     progress(0.5, desc="Generating vector database...")
-    vector_db = create_db(doc_splits, collection_name)
+    vector_db = create_db(doc_splits)
     progress(0.9, desc="Done!")
     return vector_db, collection_name, "Complete!"
 
@@ -181,7 +171,7 @@ def demo():
         
         with gr.Tab("Step 2 - Process document"):
             with gr.Row():
-                db_btn = gr.Radio(["ChromaDB"], label="Vector database type", value="ChromaDB", type="index", info="Choose your vector database")
+                db_btn = gr.Radio(["FAISS"], label="Vector database type", value="FAISS", type="index", info="Choose your vector database")
             with gr.Accordion("Advanced options - Document text splitter", open=False):
                 with gr.Row():
                     slider_chunk_size = gr.Slider(minimum=100, maximum=1000, value=600, step=20, label="Chunk size", info="Chunk size", interactive=True)
@@ -257,6 +247,3 @@ if __name__ == "__main__":
     demo()
 
 
-
-if __name__ == "__main__":
-    demo()
