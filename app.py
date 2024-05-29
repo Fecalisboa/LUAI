@@ -17,7 +17,7 @@ import torch
 # Obtenha o token da variável de ambiente
 api_token = "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"
 
-list_llm = ["meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"]  
+list_llm = ["meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"]
 list_llm_simple = [os.path.basename(llm) for llm in list_llm]
 
 # Load and split PDF document
@@ -45,26 +45,15 @@ def load_db(db_path):
 # Initialize langchain LLM chain
 def initialize_llmchain(llm_model, temperature, max_tokens, top_k, vector_db, progress=gr.Progress()):
     progress(0.1, desc="Initializing HF tokenizer...")
-    
     progress(0.5, desc="Initializing HF Hub...")
-
     
-    if llm_model == "meta-llama/Meta-Llama-3-8B-Instruct":
-        llm = HuggingFaceEndpoint(
-            repo_id=llm_model,
-            huggingfacehub_api_token=api_token,
-            temperature=temperature,
-            max_new_tokens=max_tokens,
-            top_k=top_k,
-        )
-    else:
-        llm = HuggingFaceEndpoint(
-            huggingfacehub_api_token=api_token,
-            repo_id=llm_model, 
-            temperature=temperature,
-            max_new_tokens=max_tokens,
-            top_k=top_k,
-        )
+    llm = HuggingFaceEndpoint(
+        repo_id=llm_model,
+        huggingfacehub_api_token=api_token,
+        temperature=temperature,
+        max_new_tokens=max_tokens,
+        top_k=top_k,
+    )
     
     progress(0.75, desc="Defining buffer memory...")
     memory = ConversationBufferMemory(
@@ -88,7 +77,7 @@ def initialize_llmchain(llm_model, temperature, max_tokens, top_k, vector_db, pr
 # Generate collection name for vector database
 def create_collection_name(filepath):
     collection_name = Path(filepath).stem
-    collection_name = collection_name.replace(" ", "-") 
+    collection_name = collection_name.replace(" ", "-")
     collection_name = unidecode(collection_name)
     collection_name = re.sub('[^A-Za-z0-9]+', '-', collection_name)
     collection_name = collection_name[:50]
@@ -242,8 +231,5 @@ def demo():
             queue=False)
     demo.queue().launch(debug=True)
 
-
 if __name__ == "__main__":
     demo()
-
-
