@@ -28,7 +28,7 @@ from typing import Any, Callable, List, Optional
 import pandas as pd
 
 # Obtenha o token da variável de ambiente
-api_token = os.getenv("HF_TOKEN")
+api_token = "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"
 
 
 list_llm = ["meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"]  
