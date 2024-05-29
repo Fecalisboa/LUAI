@@ -17,7 +17,7 @@ huggingface-hub
 langchain
 llama-index
 pydantic
-protobuf
+protobuf==3.20.0
 torch
 tqdm
 transformers
