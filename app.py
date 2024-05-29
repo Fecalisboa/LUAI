@@ -1,5 +1,11 @@
 import gradio as gr
 import os
+from pathlib import Path
+import re
+from unidecode import unidecode
+import chromadb
+from pydantic_settings import BaseSettings
+from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -9,27 +15,10 @@ from langchain_community.llms import HuggingFacePipeline
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain_community.llms import HuggingFaceEndpoint
-from huggingface_hub import login
-
-from pathlib import Path
-import chromadb
-from unidecode import unidecode
-
-from transformers import AutoTokenizer
-import transformers
 import torch
-import tqdm 
-import accelerate
-import re
-
-from io import StringIO
-from typing import Any, Callable, List, Optional
-
-import pandas as pd
 
 # Obtenha o token da variável de ambiente
 api_token = "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"
-
 
 list_llm = ["meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"]  
 list_llm_simple = [os.path.basename(llm) for llm in list_llm]
@@ -73,18 +62,18 @@ def initialize_llmchain(llm_model, temperature, max_tokens, top_k, vector_db, pr
     if llm_model == "meta-llama/Meta-Llama-3-8B-Instruct":
         llm = HuggingFaceEndpoint(
             repo_id=llm_model,
-            huggingfacehub_api_token = api_token,
-            temperature = temperature,
-            max_new_tokens = max_tokens,
-            top_k = top_k,
+            huggingfacehub_api_token=api_token,
+            temperature=temperature,
+            max_new_tokens=max_tokens,
+            top_k=top_k,
         )
     else:
         llm = HuggingFaceEndpoint(
-            huggingfacehub_api_token = api_token,
+            huggingfacehub_api_token=api_token,
             repo_id=llm_model, 
-            temperature = temperature,
-            max_new_tokens = max_tokens,
-            top_k = top_k,
+            temperature=temperature,
+            max_new_tokens=max_tokens,
+            top_k=top_k,
         )
     
     progress(0.75, desc="Defining buffer memory...")
@@ -109,7 +98,7 @@ def initialize_llmchain(llm_model, temperature, max_tokens, top_k, vector_db, pr
 # Generate collection name for vector database
 def create_collection_name(filepath):
     collection_name = Path(filepath).stem
-    collection_name = collection_name.replace(" ","-") 
+    collection_name = collection_name.replace(" ", "-") 
     collection_name = unidecode(collection_name)
     collection_name = re.sub('[^A-Za-z0-9]+', '-', collection_name)
     collection_name = collection_name[:50]
@@ -262,6 +251,11 @@ def demo():
             outputs=[chatbot, doc_source1, source1_page, doc_source2, source2_page, doc_source3, source3_page], 
             queue=False)
     demo.queue().launch(debug=True)
+
+
+if __name__ == "__main__":
+    demo()
+
 
 
 if __name__ == "__main__":
