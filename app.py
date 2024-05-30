@@ -40,20 +40,14 @@ with st.sidebar:
     selected_model = st.selectbox("Select Model", options=EmbeddingTypes)
     match selected_model:
         case EmbeddingTypes.OPENAI:
-            api_key = st.text_input("OpenAI API Key", placeholder="sk-...", type="password")
-            if not api_key.startswith('sk-'):
-                st.warning('Please enter your OpenAI API key!', icon='⚠')
+            api_key = "sua_openai_api_key_aqui"
             model_settings()
         case EmbeddingTypes.HUGGING_FACE:
-            api_key = st.text_input("Hugging Face API Key", placeholder="hg-...", type="password")
-            if not api_key.startswith('hg-'):
-                st.warning('Please enter your HuggingFace API key!', icon='⚠')
-            kwargs["model_name"] = st.selectbox("Choose Model", options=["google/flan-t5-xxl"])
+            api_key = "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"
+            kwargs["model_name"] = st.selectbox("Choose Model", options=["mistralai/Mistral-7B-Instruct-v0.3"])
             model_settings()
         case EmbeddingTypes.COHERE:
-            api_key = st.text_input("Cohere API Key", placeholder="...", type="password")
-            if not api_key:
-                st.warning('Please enter your Cohere API key!', icon='⚠')
+            api_key = "OGY2ZCgZ4351TM0pXzRNeJLpw6o9GhyfWA3r05eW"
             model_settings()
         case _:
             api_key = None
@@ -160,3 +154,4 @@ with tab3:
         st.warning("Feature not enabled.", icon='⚠')
     else:
         st.warning("Please upload PDF", icon='⚠')
+
