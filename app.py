@@ -2,6 +2,7 @@ import base64
 import streamlit as st
 from streamlit_chat import message
 from streamlit_extras.colored_header import colored_header
+from schema import TransformType, EmbeddingTypes, IndexerType, BotType
 import os
 from langchain import FAISS, OpenAI, HuggingFaceHub, Cohere, PromptTemplate
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
@@ -11,7 +12,6 @@ from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, NLTKTextSplitter, SpacyTextSplitter
 from langchain.vectorstores import Chroma, ElasticVectorSearch
 from pypdf import PdfReader
-from schema import TransformType, EmbeddingTypes, IndexerType, BotType
 
 class QnASystem:
 
@@ -48,7 +48,7 @@ class QnASystem:
                 embeddings = HuggingFaceEmbeddings(model_name=kwargs.get("model_name"))
                 llm = HuggingFaceHub(repo_id=kwargs.get("model_name"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
             case EmbeddingTypes.COHERE:
-                os.environ["COHERE_API_KEY"] = kwargs.get("api_key") or os.getenv("COHERE_API_KEY")
+                os.environ["COHERE_API_KEY"] = kwargs.get("OGY2ZCgZ4351TM0pXzRNeJLpw6o9GhyfWA3r05eW") or os.getenv("COHERE_API_KEY")
                 embeddings = CohereEmbeddings(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"))
                 llm = Cohere(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
             case _:
@@ -112,7 +112,6 @@ class QnASystem:
         qa = self.build_qa(qa_type=kwargs.get("bot_type"), **kwargs)
         return qa
 
-# Streamlit app
 kwargs = {}
 source_docs = []
 st.set_page_config(page_title="PDFChat - An LLM-powered experimentation app")
@@ -153,7 +152,7 @@ with st.sidebar:
             model_settings()
         case EmbeddingTypes.HUGGING_FACE:
             api_key = "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"
-            kwargs["model_name"] = st.selectbox("Choose Model", options=["mistralai/Mistral-7B-Instruct-v0.3"])
+            kwargs["model_name"] = st.selectbox("Choose Model", options=["google/flan-t5-xxl"])
             model_settings()
         case EmbeddingTypes.COHERE:
             api_key = "OGY2ZCgZ4351TM0pXzRNeJLpw6o9GhyfWA3r05eW"
@@ -261,4 +260,3 @@ with tab3:
         st.warning("Feature not enabled.", icon='⚠')
     else:
         st.warning("Please upload PDF", icon='⚠')
-
