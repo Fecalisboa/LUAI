@@ -1,235 +1,162 @@
-import gradio as gr
-import os
-from pathlib import Path
-import re
-from unidecode import unidecode
-from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import ConversationalRetrievalChain
-from langchain_community.embeddings import HuggingFaceEmbeddings 
-from langchain_community.llms import HuggingFacePipeline
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
-from langchain_community.llms import HuggingFaceEndpoint
-import torch
+import base64
+import streamlit as st
+from streamlit_chat import message
+from streamlit_extras.colored_header import colored_header
+from backend import QnASystem
+from schema import TransformType, EmbeddingTypes, IndexerType, BotType
 
-# Obtenha o token da variável de ambiente
-api_token = "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"
+kwargs = {}
+source_docs = []
+st.set_page_config(page_title="PDFChat - An LLM-powered experimentation app")
 
-list_llm = ["meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.3"]
-list_llm_simple = [os.path.basename(llm) for llm in list_llm]
+if "qna_system" not in st.session_state:
+    st.session_state.qna_system = QnASystem()
 
-# Load and split PDF document
-def load_doc(list_file_path, chunk_size, chunk_overlap):
-    loaders = [PyPDFLoader(x) for x in list_file_path]
-    pages = []
-    for loader in loaders:
-        pages.extend(loader.load())
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    doc_splits = text_splitter.split_documents(pages)
-    return doc_splits
+def show_pdf(f):
+    f.seek(0)
+    base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="800" ' \
+                  f'type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
 
-# Create vector database
-def create_db(splits):
-    embeddings = HuggingFaceEmbeddings()
-    vectordb = FAISS.from_documents(splits, embeddings)
-    return vectordb
+def model_settings():
+    kwargs["temperature"] = st.slider("Temperature", max_value=1.0, min_value=0.0)
+    kwargs["max_tokens"] = st.number_input("Max Token", min_value=0, value=512)
 
-# Load vector database (example if you want to load an existing one)
-def load_db(db_path):
-    embeddings = HuggingFaceEmbeddings()
-    vectordb = FAISS.load_local(db_path, embeddings)
-    return vectordb
+st.title("PDF Question and Answering")
 
-# Initialize langchain LLM chain
-def initialize_llmchain(llm_model, temperature, max_tokens, top_k, vector_db, progress=gr.Progress()):
-    progress(0.1, desc="Initializing HF tokenizer...")
-    progress(0.5, desc="Initializing HF Hub...")
-    
-    llm = HuggingFaceEndpoint(
-        repo_id=llm_model,
-        huggingfacehub_api_token=api_token,
-        temperature=temperature,
-        max_new_tokens=max_tokens,
-        top_k=top_k,
-    )
-    
-    progress(0.75, desc="Defining buffer memory...")
-    memory = ConversationBufferMemory(
-        memory_key="chat_history",
-        output_key='answer',
-        return_messages=True
-    )
-    retriever = vector_db.as_retriever()
-    progress(0.8, desc="Defining retrieval chain...")
-    qa_chain = ConversationalRetrievalChain.from_llm(
-        llm,
-        retriever=retriever,
-        chain_type="stuff", 
-        memory=memory,
-        return_source_documents=True,
-        verbose=False,
-    )
-    progress(0.9, desc="Done!")
-    return qa_chain
+tab1, tab2, tab3 = st.tabs(["Upload and Ingest PDF", "Ask", "Show PDF"])
 
-# Generate collection name for vector database
-def create_collection_name(filepath):
-    collection_name = Path(filepath).stem
-    collection_name = collection_name.replace(" ", "-")
-    collection_name = unidecode(collection_name)
-    collection_name = re.sub('[^A-Za-z0-9]+', '-', collection_name)
-    collection_name = collection_name[:50]
-    if len(collection_name) < 3:
-        collection_name = collection_name + 'xyz'
-    if not collection_name[0].isalnum():
-        collection_name = 'A' + collection_name[1:]
-    if not collection_name[-1].isalnum():
-        collection_name = collection_name[:-1] + 'Z'
-    print('Filepath: ', filepath)
-    print('Collection name: ', collection_name)
-    return collection_name
+with st.sidebar:
+    st.header("Advance Setting ⚙️")
+    require_pdf = st.checkbox("Show PDF", value=1)
+    st.markdown('---')
+    kwargs["bot_type"] = st.selectbox("Bot Type", options=BotType)
+    st.markdown("---")
+    st.text("Model Parameters")
+    kwargs["return_documents"] = st.checkbox("Require Source Documents", value=True)
+    text_transform = st.selectbox("Text Transformer", options=TransformType)
+    st.markdown("---")
+    selected_model = st.selectbox("Select Model", options=EmbeddingTypes)
+    match selected_model:
+        case EmbeddingTypes.OPENAI:
+            api_key = st.text_input("OpenAI API Key", placeholder="sk-...", type="password")
+            if not api_key.startswith('sk-'):
+                st.warning('Please enter your OpenAI API key!', icon='⚠')
+            model_settings()
+        case EmbeddingTypes.HUGGING_FACE:
+            api_key = st.text_input("Hugging Face API Key", placeholder="hg-...", type="password")
+            if not api_key.startswith('hg-'):
+                st.warning('Please enter your HuggingFace API key!', icon='⚠')
+            kwargs["model_name"] = st.selectbox("Choose Model", options=["google/flan-t5-xxl"])
+            model_settings()
+        case EmbeddingTypes.COHERE:
+            api_key = st.text_input("Cohere API Key", placeholder="...", type="password")
+            if not api_key:
+                st.warning('Please enter your Cohere API key!', icon='⚠')
+            model_settings()
+        case _:
+            api_key = None
+    kwargs["api_key"] = api_key
+    st.markdown("---")
 
-# Initialize database
-def initialize_database(list_file_obj, chunk_size, chunk_overlap, progress=gr.Progress()):
-    list_file_path = [x.name for x in list_file_obj if x is not None]
-    progress(0.1, desc="Creating collection name...")
-    collection_name = create_collection_name(list_file_path[0])
-    progress(0.25, desc="Loading document...")
-    doc_splits = load_doc(list_file_path, chunk_size, chunk_overlap)
-    progress(0.5, desc="Generating vector database...")
-    vector_db = create_db(doc_splits)
-    progress(0.9, desc="Done!")
-    return vector_db, collection_name, "Complete!"
+    vector_indexer = st.selectbox("Vector Indexer", options=IndexerType)
+    match vector_indexer:
+        case IndexerType.ELASTICSEARCH:
+            kwargs["elasticsearch_url"] = st.text_input("Elastic Search URL: ")
+            if not kwargs.get("elasticsearch_url"):
+                st.warning("Please enter your elastic search url", icon='⚠')
+            kwargs["elasticsearch_index"] = st.text_input("Elastic Search Index: ")
+            if not kwargs.get("elasticsearch_index"):
+                st.warning("Please enter your elastic search index", icon='⚠')
 
-def initialize_LLM(llm_option, llm_temperature, max_tokens, top_k, vector_db, progress=gr.Progress()):
-    llm_name = list_llm[llm_option]
-    print("llm_name: ", llm_name)
-    qa_chain = initialize_llmchain(llm_name, llm_temperature, max_tokens, top_k, vector_db, progress)
-    return qa_chain, "Complete!"
+    st.markdown("---")
+    st.text("Chain Settings")
+    kwargs["chain_type"] = st.selectbox("Chain Type", options=["stuff", "map_reduce"])
+    kwargs["search_type"] = st.selectbox("Search Type", options=["similarity"])
+    st.markdown("---")
 
-def format_chat_history(message, chat_history):
-    formatted_chat_history = []
-    for user_message, bot_message in chat_history:
-        formatted_chat_history.append(f"User: {user_message}")
-        formatted_chat_history.append(f"Assistant: {bot_message}")
-    return formatted_chat_history
+with tab1:
+    uploaded_file = st.file_uploader("Upload and Ingest PDF 🚀", type="pdf")
+    if uploaded_file:
+        with st.spinner("Uploading and Ingesting"):
+            documents = st.session_state.qna_system.read_and_load_pdf(uploaded_file)
+            if selected_model == EmbeddingTypes.NA:
+                st.warning("Please select the model", icon='⚠')
+            else:
+                st.session_state.qna_system.build_chain(transform_type=text_transform, embedding_type=selected_model,
+                                                        indexer_type=vector_indexer, **kwargs)
 
-def conversation(qa_chain, message, history):
-    formatted_chat_history = format_chat_history(message, history)
-   
-    response = qa_chain({"question": message, "chat_history": formatted_chat_history})
-    response_answer = response["answer"]
-    if "Helpful Answer:" in response_answer:
-        response_answer = response_answer.split("Helpful Answer:")[-1]
-    response_sources = response["source_documents"]
-    response_source1 = response_sources[0].page_content.strip()
-    response_source2 = response_sources[1].page_content.strip()
-    response_source3 = response_sources[2].page_content.strip()
-    response_source1_page = response_sources[0].metadata["page"] + 1
-    response_source2_page = response_sources[1].metadata["page"] + 1
-    response_source3_page = response_sources[2].metadata["page"] + 1
-    
-    new_history = history + [(message, response_answer)]
-    return qa_chain, gr.update(value=""), new_history, response_source1, response_source1_page, response_source2, response_source2_page, response_source3, response_source3_page
+def generate_response(prompt):
+    if prompt and uploaded_file:
+        response = st.session_state.qna_system.ask_question(prompt)
+        return response.get("answer", response.get("result", "")), response.get("source_documents")
+    return "", []
 
-def upload_file(file_obj):
-    list_file_path = []
-    for file in file_obj:
-        list_file_path.append(file.name)
-    return list_file_path
+with tab2:
+    if not uploaded_file:
+        st.warning("Please upload PDF", icon='⚠')
+    else:
+        match kwargs["bot_type"]:
+            case BotType.qna:
+                with st.container():
+                    with st.form('my_form'):
+                        text = st.text_area("", placeholder='Ask me...')
+                        submitted = st.form_submit_button('Submit')
+                        if text:
+                            st.write(f"Question:\n{text}")
+                            response, source_docs = generate_response(text)
+                            st.write(response)
+            case BotType.conversational:
+                # Generate empty lists for generated and past.
+                ## generated stores AI generated responses
+                if 'generated' not in st.session_state:
+                    st.session_state['generated'] = ["Hi! I'm PDF Assistant 🤖, How may I help you?"]
+                ## past stores User's questions
+                if 'past' not in st.session_state:
+                    st.session_state['past'] = ['Hi!']
 
-def demo():
-    with gr.Blocks(theme="base") as demo:
-        vector_db = gr.State()
-        qa_chain = gr.State()
-        collection_name = gr.State()
-        
-        gr.Markdown(
-        """<center><h2>PDF-based chatbot</center></h2>
-        <h3>Ask any questions about your PDF documents</h3>""")
-        gr.Markdown(
-        """<b>Note:</b> Esta é a lucIAna, primeira Versão da IA para seus PDF documentos. 
-        Este chatbot leva em consideração perguntas anteriores ao gerar respostas (por meio de memória conversacional) e inclui referências a documentos para fins de clareza.
-        """)
-        
-        with gr.Tab("Step 1 - Upload PDF"):
-            with gr.Row():
-                document = gr.Files(height=100, file_count="multiple", file_types=["pdf"], interactive=True, label="Upload your PDF documents (single or multiple)")
-        
-        with gr.Tab("Step 2 - Process document"):
-            with gr.Row():
-                db_btn = gr.Radio(["FAISS"], label="Vector database type", value="FAISS", type="index", info="Choose your vector database")
-            with gr.Accordion("Advanced options - Document text splitter", open=False):
-                with gr.Row():
-                    slider_chunk_size = gr.Slider(minimum=100, maximum=1000, value=600, step=20, label="Chunk size", info="Chunk size", interactive=True)
-                with gr.Row():
-                    slider_chunk_overlap = gr.Slider(minimum=10, maximum=200, value=40, step=10, label="Chunk overlap", info="Chunk overlap", interactive=True)
-            with gr.Row():
-                db_progress = gr.Textbox(label="Vector database initialization", value="None")
-            with gr.Row():
-                db_btn = gr.Button("Generate vector database")
-        
-        with gr.Tab("Step 3 - Initialize QA chain"):
-            with gr.Row():
-                llm_btn = gr.Radio(list_llm_simple, 
-                    label="LLM models", value=list_llm_simple[0], type="index", info="Choose your LLM model")
-            with gr.Accordion("Advanced options - LLM model", open=False):
-                with gr.Row():
-                    slider_temperature = gr.Slider(minimum=0.01, maximum=1.0, value=0.7, step=0.1, label="Temperature", info="Model temperature", interactive=True)
-                with gr.Row():
-                    slider_maxtokens = gr.Slider(minimum=224, maximum=4096, value=1024, step=32, label="Max Tokens", info="Model max tokens", interactive=True)
-                with gr.Row():
-                    slider_topk = gr.Slider(minimum=1, maximum=10, value=3, step=1, label="top-k samples", info="Model top-k samples", interactive=True)
-            with gr.Row():
-                llm_progress = gr.Textbox(value="None", label="QA chain initialization")
-            with gr.Row():
-                qachain_btn = gr.Button("Initialize Question Answering chain")
+                input_container = st.container()
+                colored_header(label='', description='', color_name='blue-30')
+                response_container = st.container()
+                response = ""
 
-        with gr.Tab("Step 4 - Chatbot"):
-            chatbot = gr.Chatbot(height=300)
-            with gr.Accordion("Advanced - Document references", open=False):
-                with gr.Row():
-                    doc_source1 = gr.Textbox(label="Reference 1", lines=2, container=True, scale=20)
-                    source1_page = gr.Number(label="Page", scale=1)
-                with gr.Row():
-                    doc_source2 = gr.Textbox(label="Reference 2", lines=2, container=True, scale=20)
-                    source2_page = gr.Number(label="Page", scale=1)
-                with gr.Row():
-                    doc_source3 = gr.Textbox(label="Reference 3", lines=2, container=True, scale=20)
-                    source3_page = gr.Number(label="Page", scale=1)
-            with gr.Row():
-                msg = gr.Textbox(placeholder="Type message (e.g. 'What is this document about?')", container=True)
-            with gr.Row():
-                submit_btn = gr.Button("Submit message")
-                clear_btn = gr.ClearButton([msg, chatbot], value="Clear conversation")
-            
-        # Preprocessing events
-        db_btn.click(initialize_database, 
-            inputs=[document, slider_chunk_size, slider_chunk_overlap], 
-            outputs=[vector_db, collection_name, db_progress])
-        qachain_btn.click(initialize_LLM, 
-            inputs=[llm_btn, slider_temperature, slider_maxtokens, slider_topk, vector_db], 
-            outputs=[qa_chain, llm_progress]).then(lambda:[None,"",0,"",0,"",0], 
-            inputs=None, 
-            outputs=[chatbot, doc_source1, source1_page, doc_source2, source2_page, doc_source3, source3_page], 
-            queue=False)
+                def get_text():
+                    input_text = st.text_input("You: ", "", key="input")
+                    return input_text
 
-        # Chatbot events
-        msg.submit(conversation, 
-            inputs=[qa_chain, msg, chatbot], 
-            outputs=[qa_chain, msg, chatbot, doc_source1, source1_page, doc_source2, source2_page, doc_source3, source3_page], 
-            queue=False)
-        submit_btn.click(conversation, 
-            inputs=[qa_chain, msg, chatbot], 
-            outputs=[qa_chain, msg, chatbot, doc_source1, source1_page, doc_source2, source2_page, doc_source3, source3_page], 
-            queue=False)
-        clear_btn.click(lambda:[None,"",0,"",0,"",0], 
-            inputs=None, 
-            outputs=[chatbot, doc_source1, source1_page, doc_source2, source2_page, doc_source3, source3_page], 
-            queue=False)
-    demo.queue().launch(debug=True)
+                with input_container:
+                    user_input = get_text()
+                    if st.button("Clear"):
+                        st.session_state.generated.clear()
+                        st.session_state.past.clear()
 
-if __name__ == "__main__":
-    demo()
+                with response_container:
+                    if user_input:
+                        response, source_docs = generate_response(user_input)
+                        st.session_state.past.append(user_input)
+                        st.session_state.generated.append(response)
+
+                    if st.session_state['generated']:
+                        for i in range(len(st.session_state['generated'])):
+                            message(st.session_state['past'][i], is_user=True, key=str(i) + '_user')
+                            message(st.session_state["generated"][i], key=str(i))
+
+        require_document = st.container()
+        if kwargs["return_documents"]:
+            with require_document:
+                with st.expander("Related Documents", expanded=False):
+                    for source in source_docs:
+                        metadata = source.metadata
+                        st.write("{source} - {page_no}".format(source=metadata.get("source"),
+                                                               page_no=metadata.get("page_no")))
+                        st.write(source.page_content)
+                        st.markdown("---")
+
+with tab3:
+    if require_pdf and uploaded_file:
+        show_pdf(uploaded_file)
+    elif uploaded_file:
+        st.warning("Feature not enabled.", icon='⚠')
+    else:
+        st.warning("Please upload PDF", icon='⚠')
