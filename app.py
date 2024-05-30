@@ -2,7 +2,6 @@ import base64
 import streamlit as st
 from streamlit_chat import message
 from streamlit_extras.colored_header import colored_header
-from schema import TransformType, EmbeddingTypes, IndexerType, BotType
 import os
 from langchain import FAISS, OpenAI, HuggingFaceHub, Cohere, PromptTemplate
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
@@ -12,6 +11,7 @@ from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTextSplitter, NLTKTextSplitter, SpacyTextSplitter
 from langchain.vectorstores import Chroma, ElasticVectorSearch
 from pypdf import PdfReader
+from schema import TransformType, EmbeddingTypes, IndexerType, BotType
 
 class QnASystem:
 
@@ -48,6 +48,7 @@ class QnASystem:
                 embeddings = HuggingFaceEmbeddings(model_name=kwargs.get("model_name"))
                 llm = HuggingFaceHub(repo_id=kwargs.get("model_name"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
             case EmbeddingTypes.COHERE:
+                os.environ["COHERE_API_KEY"] = kwargs.get("api_key") or os.getenv("COHERE_API_KEY")
                 embeddings = CohereEmbeddings(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"))
                 llm = Cohere(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
             case _:
@@ -111,6 +112,7 @@ class QnASystem:
         qa = self.build_qa(qa_type=kwargs.get("bot_type"), **kwargs)
         return qa
 
+# Streamlit app
 kwargs = {}
 source_docs = []
 st.set_page_config(page_title="PDFChat - An LLM-powered experimentation app")
