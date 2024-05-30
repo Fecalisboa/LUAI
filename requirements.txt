@@ -8,5 +8,6 @@ faiss-cpu
 pypdf
 tiktoken
 sentence_transformers
+langchain_community
 
 
