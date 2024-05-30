@@ -50,7 +50,7 @@ class QnASystem:
             case EmbeddingTypes.COHERE:
                 os.environ["COHERE_API_KEY"] = kwargs.get("OGY2ZCgZ4351TM0pXzRNeJLpw6o9GhyfWA3r05eW") or os.getenv("COHERE_API_KEY")
                 embeddings = CohereEmbeddings(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"))
-                llm = Cohere(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
+                llm = Cohere(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("OGY2ZCgZ4351TM0pXzRNeJLpw6o9GhyfWA3r05eW"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
             case _:
                 raise IndexError("Invalid Embedding Type")
         match indexer_type:
