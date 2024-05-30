@@ -45,8 +45,8 @@ class QnASystem:
                 embeddings = OpenAIEmbeddings()
                 llm = OpenAI(temperature=temperature, max_tokens=max_tokens)
             case EmbeddingTypes.HUGGING_FACE:
-                embeddings = HuggingFaceEmbeddings(model_name=kwargs.get("model_name"))
-                llm = HuggingFaceHub(repo_id=kwargs.get("model_name"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
+                embeddings = HuggingFaceEmbeddings(model_name=kwargs.get("google/flan-t5-xxl"))
+                llm = HuggingFaceHub(repo_id=kwargs.get("google/flan-t5-xxl"), model_kwargs={"temperature": temperature, "max_tokens": max_tokens})
             case EmbeddingTypes.COHERE:
                 os.environ["COHERE_API_KEY"] = kwargs.get("OGY2ZCgZ4351TM0pXzRNeJLpw6o9GhyfWA3r05eW") or os.getenv("COHERE_API_KEY")
                 embeddings = CohereEmbeddings(model=kwargs.get("model_name"), cohere_api_key=kwargs.get("api_key"))
